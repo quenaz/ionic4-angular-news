@@ -10,6 +10,9 @@ import { TabsPage } from './tabs.page';
 import { ContactPageModule } from '../contact/contact.module';
 import { AboutPageModule } from '../about/about.module';
 import { HomePageModule } from '../home/home.module';
+import { NewsPage } from '../news/news.page';
+import { NewsPageModule } from '../news/news.module';
+import { NewsSinglePageModule } from '../news-single/news-single.module';
 
 @NgModule({
   imports: [
@@ -19,7 +22,8 @@ import { HomePageModule } from '../home/home.module';
     TabsPageRoutingModule,
     HomePageModule,
     AboutPageModule,
-    ContactPageModule
+    ContactPageModule,
+    NewsPageModule
   ],
   declarations: [TabsPage]
 })

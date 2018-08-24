@@ -5,6 +5,7 @@ import { TabsPage } from './tabs.page';
 import { HomePage } from '../home/home.page';
 import { AboutPage } from '../about/about.page';
 import { ContactPage } from '../contact/contact.page';
+import { NewsPage } from '../news/news.page';
 
 const routes: Routes = [
   {
@@ -12,9 +13,9 @@ const routes: Routes = [
     component: TabsPage,
     children: [
       {
-        path: 'home',
-        outlet: 'home',
-        component: HomePage
+        path: 'news',
+        outlet: 'news',
+        component: NewsPage
       },
       {
         path: 'about',
@@ -30,7 +31,7 @@ const routes: Routes = [
   },
   {
     path: '',
-    redirectTo: '/tabs/(home:home)',
+    redirectTo: '/tabs/(news:news)',
     pathMatch: 'full'
   }
 ];
