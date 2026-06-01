@@ -1,0 +1,79 @@
+# Auto-merge workflow
+# WARNING: This workflow will merge open PRs automatically. Configure carefully.
+# Requirements:
+# 1) Create a repository secret named MERGE_TOKEN containing a Personal Access Token (classic) with `repo` scope.
+#    - The workflow uses that token to perform merges and delete branches. GITHUB_TOKEN may be limited by branch protection.
+# 2) Review branch protection rules and the merge strategy below before enabling.
+
+name: Auto Merge PRs
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * *' # daily at 04:00 UTC
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge_prs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge open, mergeable PRs
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.MERGE_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            function sleep(ms) {
+              return new Promise(resolve => setTimeout(resolve, ms));
+            }
+
+            // Fetch all open PRs (paginated)
+            const pulls = await github.paginate(github.rest.pulls.list, { owner, repo, state: 'open', per_page: 100 });
+            core.info(`Found ${pulls.length} open PR(s).`);
+
+            for (const pr of pulls) {
+              core.info(`\nProcessing PR #${pr.number}: ${pr.title} (head: ${pr.head.ref})`);
+
+              // Re-fetch to get mergeable and mergeable_state fields
+              let full = (await github.rest.pulls.get({ owner, repo, pull_number: pr.number })).data;
+
+              // Poll until GitHub computes mergeability (mergeable can be null initially)
+              const maxAttempts = 20;
+              const intervalMs = 2000;
+              let attempts = 0;
+              while (full.mergeable === null && attempts < maxAttempts) {
+                core.info(`mergeable is null, waiting ${intervalMs}ms... (attempt ${attempts + 1}/${maxAttempts})`);
+                await sleep(intervalMs);
+                full = (await github.rest.pulls.get({ owner, repo, pull_number: pr.number })).data;
+                attempts += 1;
+              }
+
+              core.info(`mergeable: ${full.mergeable} (state: ${full.mergeable_state})`);
+
+              // Only merge clean, mergeable PRs
+              if (full.mergeable === true && full.mergeable_state === 'clean') {
+                try {
+                  core.info(`Merging PR #${pr.number}...`);
+                  await github.rest.pulls.merge({ owner, repo, pull_number: pr.number, merge_method: 'merge' });
+                  core.info(`Merged PR #${pr.number}.`);
+
+                  // Try to delete the head branch (may fail for forked PRs)
+                  try {
+                    const ref = `heads/${pr.head.ref}`;
+                    await github.rest.git.deleteRef({ owner, repo, ref });
+                    core.info(`Deleted branch ${pr.head.ref}.`);
+                  } catch (delErr) {
+                    core.info(`Could not delete branch ${pr.head.ref}: ${delErr.message}`);
+                  }
+                } catch (mergeErr) {
+                  core.info(`Failed to merge PR #${pr.number}: ${mergeErr.message}`);
+                }
+              } else {
+                core.info(`Skipping PR #${pr.number} (not cleanly mergeable).`);
+              }
+            }
